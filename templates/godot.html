@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html xmlns='http://www.w3.org/1999/xhtml' lang='' xml:lang=''>
+<head>
+	<meta charset='utf-8' />
+	<meta name='viewport' content='width=device-width, user-scalable=no' />
+	<title>$GODOT_PROJECT_NAME</title>
+
+	<style type='text/css'>
+
+		body {
+			touch-action: none;
+			margin: 0;
+			border: 0 none;
+			padding: 0;
+			text-align: center;
+			background-color: black;
+		}
+
+		#canvas {
+			display: block;
+			margin: 0;
+			color: white;
+		}
+
+		#canvas:focus {
+			outline: none;
+		}
+
+		.godot {
+			font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+			color: #e0e0e0;
+			background-color: #3b3943;
+			background-image: linear-gradient(to bottom, #403e48, #35333c);
+			border: 1px solid #45434e;
+			box-shadow: 0 0 1px 1px #2f2d35;
+		}
+
+
+		/* Status display
+		 * ============== */
+
+		#status {
+			position: absolute;
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			/* don't consume click events - make children visible explicitly */
+			visibility: hidden;
+		}
+
+		#status-progress {
+			width: 366px;
+			height: 7px;
+			background-color: #38363A;
+			border: 1px solid #444246;
+			padding: 1px;
+			box-shadow: 0 0 2px 1px #1B1C22;
+			border-radius: 2px;
+			visibility: visible;
+		}
+
+		@media only screen and (orientation:portrait) {
+			#status-progress {
+				width: 61.8%;
+			}
+		}
+
+		#status-progress-inner {
+			height: 100%;
+			width: 0;
+			box-sizing: border-box;
+			transition: width 0.5s linear;
+			background-color: #202020;
+			border: 1px solid #222223;
+			box-shadow: 0 0 1px 1px #27282E;
+			border-radius: 3px;
+		}
+
+		#status-indeterminate {
+			height: 42px;
+			visibility: visible;
+			position: relative;
+		}
+
+		#status-indeterminate > div {
+			width: 4.5px;
+			height: 0;
+			border-style: solid;
+			border-width: 9px 3px 0 3px;
+			border-color: #2b2b2b transparent transparent transparent;
+			transform-origin: center 21px;
+			position: absolute;
+		}
+
+		#status-indeterminate > div:nth-child(1) { transform: rotate( 22.5deg); }
+		#status-indeterminate > div:nth-child(2) { transform: rotate( 67.5deg); }
+		#status-indeterminate > div:nth-child(3) { transform: rotate(112.5deg); }
+		#status-indeterminate > div:nth-child(4) { transform: rotate(157.5deg); }
+		#status-indeterminate > div:nth-child(5) { transform: rotate(202.5deg); }
+		#status-indeterminate > div:nth-child(6) { transform: rotate(247.5deg); }
+		#status-indeterminate > div:nth-child(7) { transform: rotate(292.5deg); }
+		#status-indeterminate > div:nth-child(8) { transform: rotate(337.5deg); }
+
+		#status-notice {
+			margin: 0 100px;
+			line-height: 1.3;
+			visibility: visible;
+			padding: 4px 6px;
+			visibility: visible;
+		}
+	</style>
+$GODOT_HEAD_INCLUDE
+
+	<script async src="https://gamepush.com/sdk/gamepush.js?projectId=3754&publicToken=9jkVsDeY0CWt2LivzvuykyHwwCPrsCiR&callback=onGPInit"></script>
+	<script type='text/javascript' src='$GODOT_URL'></script>
+</head>
+<body>
+	<canvas id='canvas'>
+		HTML5 canvas appears to be unsupported in the current browser.<br />
+		Please try updating or use a different browser.
+	</canvas>
+	<div id='status'>
+		<div id='status-progress' style='display: none;' oncontextmenu='event.preventDefault();'><div id ='status-progress-inner'></div></div>
+		<div id='status-indeterminate' style='display: none;' oncontextmenu='event.preventDefault();'>
+			<div></div>
+			<div></div>
+			<div></div>
+			<div></div>
+			<div></div>
+			<div></div>
+			<div></div>
+			<div></div>
+		</div>
+		<div id='status-notice' class='godot' style='display: none;'></div>
+	</div>
+
+	<script type='text/javascript'>//<![CDATA[
+
+		const GODOT_CONFIG = $GODOT_CONFIG;
+		var engine = new Engine(GODOT_CONFIG);
+
+		(function() {
+			const INDETERMINATE_STATUS_STEP_MS = 100;
+			var statusProgress = document.getElementById('status-progress');
+			var statusProgressInner = document.getElementById('status-progress-inner');
+			var statusIndeterminate = document.getElementById('status-indeterminate');
+			var statusNotice = document.getElementById('status-notice');
+
+			var initializing = true;
+			var statusMode = 'hidden';
+
+			var animationCallbacks = [];
+			function animate(time) {
+				animationCallbacks.forEach(callback => callback(time));
+				requestAnimationFrame(animate);
+			}
+			requestAnimationFrame(animate);
+
+			function setStatusMode(mode) {
+
+				if (statusMode === mode || !initializing)
+					return;
+				[statusProgress, statusIndeterminate, statusNotice].forEach(elem => {
+					elem.style.display = 'none';
+				});
+				animationCallbacks = animationCallbacks.filter(function(value) {
+					return (value != animateStatusIndeterminate);
+				});
+				switch (mode) {
+					case 'progress':
+						statusProgress.style.display = 'block';
+						break;
+					case 'indeterminate':
+						statusIndeterminate.style.display = 'block';
+						animationCallbacks.push(animateStatusIndeterminate);
+						break;
+					case 'notice':
+						statusNotice.style.display = 'block';
+						break;
+					case 'hidden':
+						break;
+					default:
+						throw new Error('Invalid status mode');
+				}
+				statusMode = mode;
+			}
+
+			function animateStatusIndeterminate(ms) {
+				var i = Math.floor(ms / INDETERMINATE_STATUS_STEP_MS % 8);
+				if (statusIndeterminate.children[i].style.borderTopColor == '') {
+					Array.prototype.slice.call(statusIndeterminate.children).forEach(child => {
+						child.style.borderTopColor = '';
+					});
+					statusIndeterminate.children[i].style.borderTopColor = '#dfdfdf';
+				}
+			}
+
+			function setStatusNotice(text) {
+				while (statusNotice.lastChild) {
+					statusNotice.removeChild(statusNotice.lastChild);
+				}
+				var lines = text.split('\n');
+				lines.forEach((line) => {
+					statusNotice.appendChild(document.createTextNode(line));
+					statusNotice.appendChild(document.createElement('br'));
+				});
+			};
+
+			function displayFailureNotice(err) {
+				var msg = err.message || err;
+				console.error(msg);
+				setStatusNotice(msg);
+				setStatusMode('notice');
+				initializing = false;
+			};
+
+			if (!Engine.isWebGLAvailable()) {
+				displayFailureNotice('WebGL not available');
+			} else {
+				setStatusMode('indeterminate');
+				engine.startGame({
+					'onProgress': function (current, total) {
+						if (total > 0) {
+							statusProgressInner.style.width = current/total * 100 + '%';
+							setStatusMode('progress');
+							if (current === total) {
+								// wait for progress bar animation
+								setTimeout(() => {
+									setStatusMode('indeterminate');
+								}, 500);
+							}
+						} else {
+							setStatusMode('indeterminate');
+						}
+					},
+				}).then(() => {
+					setStatusMode('hidden');
+					initializing = false;
+				}, displayFailureNotice);
+			}
+		})();
+	//]]></script>
+
+	<script type="text/javascript">
+		var _isReady = false;
+		var _gp = undefined;
+
+		var _readyCallback;
+		var _isInit = false;
+
+		window.onGPInit = async (gp) => {
+
+			_gp = gp;
+		
+			_gp.player.ready.then(() => {
+				_isReady = true;
+				InitSDK();
+			});
+
+			//Ads Callbakcs
+
+			_gp.ads.on('start', () => {
+				if(_adsStartCallback != undefined){
+					_adsStartCallback();
+				}
+			});
+
+			_gp.ads.on('close', (success) => {
+				if(_adsCloseCallback != undefined){
+					_adsCloseCallback(success);
+				}
+			});	
+
+			_gp.ads.on('fullscreen:start', () => {
+				if(_adsfullscreenStartCallback != undefined){
+					_adsfullscreenStartCallback();
+				}
+			});
+
+			_gp.ads.on('fullscreen:close', (success) => {
+				if(_adsfullscreenCloseCallback != undefined){
+					_adsfullscreenCloseCallback(success);
+				}
+			});
+
+			_gp.ads.on('rewarded:start', () => {
+				if(_adsRewardedShowCallback != undefined){
+					_adsRewardedShowCallback();
+				}
+			});
+
+			_gp.ads.on('rewarded:close', (success) => {
+				if(_adsRewardedCloseCallback != undefined){
+					_adsRewardedCloseCallback(success);
+				}
+			});
+
+			_gp.ads.on('rewarded:reward', () => {
+				if(_adsRewardedRewardCallback != undefined){
+					_adsRewardedRewardCallback();
+				}
+			});
+
+			// Game Callbacks
+
+			_gp.on('pause', () => {
+				if(_gamePauseCallback != undefined){
+					_gamePauseCallback();
+				}
+			});
+
+			_gp.on('resume', () => {
+				if(_gameResumeCallback != undefined){
+					_gameResumeCallback();
+				}
+			});
+
+			// Player
+
+			_gp.player.on('sync', (success) => {
+				if(_playerSyncCallback != undefined){
+					_playerSyncCallback(success);
+				}
+			});
+
+			_gp.player.on('load', (success) => {
+				if(_playerLoadCallback != undefined){
+					_playerLoadCallback(success);
+				}
+			});
+
+			_gp.player.on('login', (success) => {
+				if(_playerLoginCallback != undefined){
+					_playerLoginCallback(success);
+				}
+			});
+
+			_gp.player.on('fetchFields', (success) => {
+				if(_playerFetchFieldsCallback != undefined){
+					_playerFetchFieldsCallback(success);
+				}
+			});
+
+        	// Payments
+
+			gp.payments.on('purchase', ({ product, purchase }) => {
+				if(_paymentsPurchaseCallback != undefined){
+					paymentsPurchaseCallback(product, purchase);
+				}
+
+				window.focus();
+			});
+
+			gp.payments.on('error:purchase', (error) => {
+				if(_paymentsErrorCallback != undefined){
+					_paymentsErrorCallback(error);
+				}
+
+				window.focus();
+			});
+
+			gp.payments.on('consume', ({ product, purchase }) => {
+				if(_paymentsConsumeCallback != undefined){
+					_paymentsConsumeCallback(product, purchase);
+				}
+			});
+
+			gp.payments.on('error:consume', (error) => {
+				if(_paymentsConsumeErrorCallback != undefined){
+					_paymentsConsumeErrorCallback(error);
+				}
+			});
+		};
+
+		function InitSDK() {
+			if(_isInit == true || _readyCallback == undefined){
+				return;
+			}
+
+			_gp.gameStart();
+			_readyCallback();
+
+			_isInit = true;
+		}
+
+		function OnInit(callback){
+			_readyCallback = callback;
+
+			if(_isReady){
+				InitSDK();
+			}
+		}
+
+		function IsReady() {
+			return _isReady;
+		}
+
+
+		// Ads
+		// Common
+
+		var _adsStartCallback;
+		var _adsCloseCallback;
+
+		function IsAdblockEnabled() {
+			return _gp.ads.isAdblockEnabled;
+		}
+
+		function OnAdsStart(callback) {
+			_adsStartCallback = callback;
+		}
+
+		function OnAdsClose(callback) {
+			_adsCloseCallback = callback;
+		}
+
+		// Fullscreen
+
+		var _adsfullscreenStartCallback;
+		var _adsfullscreenCloseCallback;
+
+		function AdsFullscreenIsAvailable() {
+			return _gp.ads.isFullscreenAvailable;
+		}
+
+		function AdsShowFullscreen()
+        {
+            return _gp.ads.showFullscreen()
+        }
+
+		function OnAdsFullscreenStart(callback) {
+			_adsfullscreenStartCallback = callback;
+		}
+
+		function OnAdsFullscreenClose(callback) {
+			_adsfullscreenCloseCallback = callback;
+		}
+
+		// Rewarded
+
+		var _adsRewardedShowCallback;
+		var _adsRewardedCloseCallback;
+		var _adsRewardedRewardCallback;
+
+		function AdsRewardedIsAvailable() {
+			return _gp.ads.isRewardedAvailable;
+		}
+
+		function AdsShowRewarded() {
+			_gp.ads.showRewardedVideo();
+		}
+
+		function OnAdsRewardedStart(callback) {
+			_adsRewardedShowCallback = callback;
+		}
+
+		function OnAdsRewardedClose(callback) {
+			_adsRewardedCloseCallback = callback;
+		}
+
+		function OnAdsRewardedReward(callback) {
+			_adsRewardedRewardCallback = callback;
+		}
+
+		//Language
+
+		function GetLanguage() {
+			return _gp.language;
+		}
+
+		//Device
+
+		function IsMobile() {
+			return _gp.isMobile;
+		}
+
+		//Server
+
+		function GetServerTime() {
+			return _gp.serverTime;
+		}
+
+		//Game
+
+		var _gamePauseCallback;
+		var _gameResumeCallback;
+
+		function GamePlayStart() {
+			_gp.gameplayStart();
+		}
+
+		function GamePlayStop() {
+			_gp.gameplayStop();
+		}
+
+		function IsPaused() {
+			return _gp.isPaused;
+		}
+
+		function Pause() {
+			_gp.pause();
+		}
+
+		function Resume() {
+			_gp.resume();
+		}
+
+		function OnGamePause(callback) {
+			_gamePauseCallback = callback;
+		}
+
+		function OnGameResume(callback) {
+			_gameResumeCallback = callback;
+		}
+
+		// Player
+
+		var _playerSyncCallback;
+		var _playerLoadCallback;
+		var _playerLoginCallback;
+		var _playerFetchFieldsCallback;
+
+		function IsLoggedIn() {
+			return _gp.player.isLoggedIn;
+		}
+
+		// Игрок использует один из способов входа (кука, авторизация, секретный код)
+		function HasAnyCredentials() {
+			return _gp.player.hasAnyCredentials;
+		}
+
+		function PlayerSync() {
+			_gp.player.sync();
+		}
+
+		function PlayerLoad() {
+			_gp.player.load();
+		}
+
+		function PlayerLogin() {
+			_gp.player.login();
+		}
+
+		function PlayerFetchFields() {
+			_gp.player.fetchFields();
+		}
+
+		function PlayerGetID()
+        {
+            return _gp.player.id;
+        }
+
+    	function PlayerGetScore()
+        {
+            return _gp.player.score;
+        }
+
+        function PlayerSetScore(e)
+        {
+            _gp.player.score = Number(e);
+        }
+
+    	function PlayerGetName()
+        {
+            return _gp.player.name;
+        }
+
+        function PlayerSetName(e)
+        {
+            _gp.player.name = e;
+        }
+
+        function PlayerGetAvatar()
+        {
+            return _gp.player.avatar;
+        }
+
+        function PlayerSetAvatar(e)
+        {
+            _gp.player.avatar = e;
+        }
+
+        function PlayerGet(key)
+        {
+            return _gp.player.get(key);
+        }
+
+        function PlayerSet(key, value)
+        {
+            _gp.player.set(key, value);
+        }
+
+        function PlayerHas(key)
+        {
+            return _gp.player.has(key);
+        }
+
+        function OnPlayerSync(callback) {
+        	_playerSyncCallback = callback;
+        }
+
+        function OnPlayerLoad(callback) {
+        	_playerLoadCallback = callback;
+        }
+
+        function OnPlayerLogin(callback) {
+        	_playerLoginCallback = callback;
+        }
+
+        function OnPlayerFetchFields(callback) {
+        	_playerFetchFieldsCallback = callback;
+        }
+
+
+        // Payments
+
+        var _paymentsPurchaseCallback;
+        var _paymentsErrorCallback;
+        var _paymentsConsumeCallback;
+        var _paymentsConsumeErrorCallback;
+
+		function PaymentsIsAvailable()
+        {
+            return _gp.payments.isAvailable;
+        }
+
+        function PaymentsPurchase(identity)
+        {
+            _gp.payments.purchase({ id: identity });
+        }
+
+        function PaymentsConsume(identity)
+        {
+            _gp.payments.consume({ id: identity });
+        }
+
+
+        function OnPaymentsPurchase(callback) {
+        	_paymentsPurchaseCallback = callback;
+        }
+
+        function OnPaymentsError(callback) {
+        	_paymentsErrorCallback = callback;
+        }
+
+        function OnPaymentsConsume(callback) {
+        	_paymentsConsumeCallback = callback;
+        }
+
+        function OnPaymentsConsumeError(callback) {
+        	_paymentsConsumeErrorCallback = callback;
+        }
+
+	</script>
+</body>
+</html>
