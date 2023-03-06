@@ -347,15 +347,15 @@ $GODOT_HEAD_INCLUDE
 
         	// Payments
 
-			gp.payments.on('purchase', ({ product, purchase }) => {
+			_gp.payments.on('purchase', ({ product, purchase }) => {
 				if(_paymentsPurchaseCallback != undefined){
-					paymentsPurchaseCallback(product, purchase);
+					_paymentsPurchaseCallback(JSON.stringify(product), JSON.stringify(purchase));
 				}
 
 				window.focus();
 			});
 
-			gp.payments.on('error:purchase', (error) => {
+			_gp.payments.on('error:purchase', (error) => {
 				if(_paymentsErrorCallback != undefined){
 					_paymentsErrorCallback(error);
 				}
@@ -363,15 +363,36 @@ $GODOT_HEAD_INCLUDE
 				window.focus();
 			});
 
-			gp.payments.on('consume', ({ product, purchase }) => {
+			_gp.payments.on('consume', ({ product, purchase }) => {
 				if(_paymentsConsumeCallback != undefined){
-					_paymentsConsumeCallback(product, purchase);
+					//var result = { product, purchase };
+
+					_paymentsConsumeCallback(JSON.stringify(product), JSON.stringify(purchase));
 				}
 			});
 
-			gp.payments.on('error:consume', (error) => {
+			_gp.payments.on('error:consume', (error) => {
 				if(_paymentsConsumeErrorCallback != undefined){
 					_paymentsConsumeErrorCallback(error);
+				}
+			});
+
+			_gp.payments.on('fetchProducts', (result) => {
+				if(_paymentsFetchProductsCallback != undefined){
+
+					console.log(result);
+					console.log(result.products);
+					console.log(result.playerPurchases);
+
+					//_paymentsFetchProductsCallback(JSON.stringify(result.products), JSON.stringify(result.playerPurchases));
+					_paymentsFetchProductsCallback(JSON.stringify(result));
+
+				}
+			});
+
+			_gp.payments.on('error:fetchProducts', (error) => {
+				if(_paymentsFetchProductsErrorCallback != undefined){
+					_paymentsFetchProductsErrorCallback(error);
 				}
 			});
 		};
@@ -622,6 +643,8 @@ $GODOT_HEAD_INCLUDE
         var _paymentsErrorCallback;
         var _paymentsConsumeCallback;
         var _paymentsConsumeErrorCallback;
+        var _paymentsFetchProductsCallback;
+        var _paymentsFetchProductsErrorCallback;
 
 		function PaymentsIsAvailable()
         {
@@ -630,14 +653,20 @@ $GODOT_HEAD_INCLUDE
 
         function PaymentsPurchase(identity)
         {
-            _gp.payments.purchase({ id: identity });
+        	const t = parseInt(identity, 10) || 0;
+            _gp.payments.purchase({ id: t });
         }
 
         function PaymentsConsume(identity)
         {
-            _gp.payments.consume({ id: identity });
+        	const t = parseInt(identity, 10) || 0;
+            _gp.payments.consume({ id: t });
         }
 
+        function PaymentsFetchProducts()
+        {
+            _gp.payments.fetchProducts();
+        }
 
         function OnPaymentsPurchase(callback) {
         	_paymentsPurchaseCallback = callback;
@@ -653,6 +682,14 @@ $GODOT_HEAD_INCLUDE
 
         function OnPaymentsConsumeError(callback) {
         	_paymentsConsumeErrorCallback = callback;
+        }
+
+        function OnPaymentsFetchProducts(callback) {
+        	_paymentsFetchProductsCallback = callback;
+        }
+
+        function OnPaymentsFetchErrorProducts(callback) {
+        	_paymentsFetchProductsErrorCallback = callback;
         }
 
 	</script>

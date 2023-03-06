@@ -30,6 +30,7 @@ namespace GamePushSDK
             GPPlayer.Init();
             GPGame.Init();
             GPAds.Init();
+            GPPayments.Init();
             
             _isInit = true;
         }

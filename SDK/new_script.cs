@@ -14,6 +14,8 @@ public class new_script : Node
         GPSdk.OnReady += Print;
         GPGame.OnPause += () => GD.Print("Game Pause");
         GPGame.OnResume += () => GD.Print("Game Resume");
+
+        GPPayments.OnPurchase += OnPurchase;
         
         if (GPSdk.HasAvailable)
         {
@@ -36,64 +38,32 @@ public class new_script : Node
         GPPlayer.Login();
 
         GPPlayer.Sync();
-        GD.Print(GPPlayer.GetString("Progress"));
+        GPPayments.FetchProducts();
         
-        GPPlayer.Set("Progress", "new progress");
-        GPPlayer.Sync();
         
-        GD.Print(GPPlayer.GetString("Progress"));
     }
 
     private void OnLogin(bool success)
     {
         GD.Print("On Login: " + success);
     }
-    
-    public static class GPPayments
+
+    public override void _Input(InputEvent evt)
     {
-        public static bool IsAvailable => _context.GetBool("PaymentsIsAvailable");
-
-        private static JSContext _context => GPSdk.Context;
-
-        public static event Action OnPurchase;
-        public static event Action OnError;
-        
-        public static void Init()
+        if (evt.IsActionPressed("ui_select"))
         {
-            _context.Call("OnPaymentsPurchase", OnPaymentsPurchase);
-            _context.Call("OnPaymentsError", OnPaymentsError);
-            _context.Call("OnPaymentsConsume", OnPaymentsConsume);
-            _context.Call("OnPaymentsConsumeError", OnPaymentsConsumeError);
-        }
-
-        public static void Purchase(int id)
-        {
-            _context.Call("PaymentsPurchase", id);
-        }
-
-        public static void Consume(int id)
-        {
-            _context.Call("PaymentsConsume", id);
-        }
-
-        private static void OnPaymentsPurchase(object[] args)
-        {
+            GPPayments.Purchase(1331);
+            //GPPayments.Consume(1331);
             
+            //GPPayments.Purchase(1332);
         }
+    }
 
-        private static void OnPaymentsError(object[] args)
+    private void OnPurchase(Product arg1, PlayerPurchases arg2)
+    {
+        if (arg2.productId == 1331)
         {
-            
-        }
-
-        private static void OnPaymentsConsume(object[] args)
-        {
-            
-        }
-
-        private static void OnPaymentsConsumeError(object[] args)
-        {
-            
+            GPPayments.Consume(1331);
         }
     }
 }

@@ -58,7 +58,10 @@ namespace GamePushSDK
 
         public static void Login()
         {
-            _context.Call("PlayerLogin");
+            if(IsLoggedIn == false)
+            {
+                _context.Call("PlayerLogin");
+            }
         }
 
         public static void FetchFields()
